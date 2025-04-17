@@ -1,6 +1,6 @@
 import pandas as pd
-import matplotlib.pyplot as plt
 import streamlit as st
+import plotly.express as px
 
 @st.cache_data
 def load_data(file_path):
@@ -10,22 +10,16 @@ def load_data(file_path):
 
 @st.cache_data
 def plot_heatmap(df):
-    fig, ax = plt.subplots(figsize=(10, 6))
-    ax.imshow(df.iloc[:20, :20], cmap="viridis")
-    st.pyplot(fig)
+    fig = px.imshow(df.iloc[:20, :20], color_continuous_scale="Viridis", title="Heatmap of Data")
+    st.plotly_chart(fig)
 
 @st.cache_data
 def plot_violin(df):
     subset = df.loc[["Gene_1", "Gene_2", "Gene_3"]].T
     melted = subset.melt(var_name="Gene", value_name="Expression")
     
-    fig, ax = plt.subplots(figsize=(8, 5))
-    ax.violinplot([melted[melted["Gene"] == gene]["Expression"].values for gene in melted["Gene"].unique()])
-    ax.set_xticks(range(1, len(melted["Gene"].unique()) + 1))
-    ax.set_xticklabels(melted["Gene"].unique())
-    ax.set_ylabel("Expression")
-    ax.set_title("Violin Plot of Gene Expressions")
-    st.pyplot(fig)
+    fig = px.violin(melted, x="Gene", y="Expression", box=True, title="Violin Plot of Gene Expressions")
+    st.plotly_chart(fig)
 
 @st.cache_data
 def plot_pca(df):
@@ -39,10 +33,8 @@ def plot_pca(df):
     pca_df = pd.DataFrame(components, columns=["PC1", "PC2"])
     pca_df["Cell"] = df.columns
 
-    fig, ax = plt.subplots(figsize=(8, 5))
-    ax.scatter(pca_df["PC1"], pca_df["PC2"])
-    ax.set_title("PCA of Cells")
-    st.pyplot(fig)
+    fig = px.scatter(pca_df, x="PC1", y="PC2", title="PCA of Cells")
+    st.plotly_chart(fig)
 
 @st.cache_data
 def apply_kmeans(df):
@@ -59,10 +51,8 @@ def apply_kmeans(df):
     cluster_df = pd.DataFrame(reduced, columns=["PC1", "PC2"])
     cluster_df["Cluster"] = clusters
 
-    fig, ax = plt.subplots(figsize=(8, 5))
-    scatter = ax.scatter(cluster_df["PC1"], cluster_df["PC2"], c=cluster_df["Cluster"], cmap="Set2")
-    ax.set_title("KMeans Clustering on Cells")
-    st.pyplot(fig)
+    fig = px.scatter(cluster_df, x="PC1", y="PC2", color="Cluster", title="KMeans Clustering on Cells")
+    st.plotly_chart(fig)
 
 # Streamlit App
 def main():
