@@ -10,19 +10,6 @@ def load_data(file_path):
     return df
 
 @st.cache_data
-def plot_heatmap(df):
-    """Plot a simple heatmap using Streamlit's line_chart."""
-    subset = df.iloc[:20, :20]  # Taking top 20 rows and columns for heatmap
-    st.line_chart(subset)  # Simple line chart for heatmap
-
-@st.cache_data
-def plot_violin(df):
-    """Plot gene expression using Streamlit's bar_chart."""
-    subset = df.loc[["Gene_1", "Gene_2", "Gene_3"]].T
-    melted = subset.melt(var_name="Gene", value_name="Expression")
-    st.bar_chart(melted['Expression'])  # Plot expression values using a bar chart
-
-@st.cache_data
 def pca(df):
     """Perform PCA manually (using covariance matrix and eigen decomposition)."""
     # Center the data (subtract the mean from each column)
@@ -86,10 +73,7 @@ def apply_kmeans(df, n_clusters=3):
     pca_df = pca(df)
     pca_df["Cluster"] = clusters
 
-    # Plot the PCA results with clusters using Streamlit's scatter_chart
-    st.write("### PCA with KMeans Clusters")
-    st.scatter_chart(pca_df[["PC1", "PC2"]])  # Plot PCA in 2D
-    return pca_df
+    return pca_df, centroids
 
 # Streamlit App
 def main():
@@ -100,22 +84,25 @@ def main():
     if uploaded_file is not None:
         df = load_data(uploaded_file)
         st.success("✅ Data loaded successfully!")
-        
-        if st.button("Plot Heatmap"):
-            plot_heatmap(df)
 
-        if st.button("Plot Violin Plot"):
-            plot_violin(df)
-
+        # Plot PCA
         if st.button("Plot PCA"):
             pca_df = pca(df)
             st.write("### PCA Plot")
-            st.scatter_chart(pca_df[["PC1", "PC2"]])  # Plot PCA in 2D
+            st.write("Visualizing the first two principal components of the dataset.")
+            st.scatter_chart(pca_df)  # Plot PCA in 2D
 
+        # Apply KMeans and plot with PCA results
         if st.button("Apply KMeans Clustering"):
-            pca_df = apply_kmeans(df)
-            st.write("### KMeans Clustering Results on PCA")
-            st.scatter_chart(pca_df[["PC1", "PC2", "Cluster"]])  # Plot PCA with clusters
+            pca_df, centroids = apply_kmeans(df)
+            st.write("### PCA with KMeans Clusters")
+            st.write("Visualizing the PCA results with KMeans clustering.")
+            st.scatter_chart(pca_df[["PC1", "PC2"]])  # Plot PCA in 2D with clusters
+
+            # Optionally display the centroids
+            st.write("### KMeans Centroids")
+            st.write("Centroids of the KMeans clusters in PCA space:")
+            st.write(centroids)
 
 if __name__ == "__main__":
     main()
