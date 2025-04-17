@@ -1,85 +1,91 @@
 import pandas as pd
-import seaborn as sns
 import matplotlib.pyplot as plt
-from sklearn.preprocessing import StandardScaler
-from sklearn.decomposition import PCA
-from sklearn.cluster import KMeans
-from tkinter import Tk, filedialog, Button, Label
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import streamlit as st
+from matplotlib.backends.backend_streamlit import st.pyplot
 
-class SingleCellApp:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("Single Cell Omics Analyzer")
-        self.df = None
+@st.cache_data
+def load_data(file_path):
+    df = pd.read_csv(file_path, index_col=0)
+    df = df.apply(pd.to_numeric)
+    return df
 
-        Label(root, text="Single Cell Omics GUI Tool", font=("Helvetica", 16)).pack(pady=10)
+@st.cache_data
+def plot_heatmap(df):
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.imshow(df.iloc[:20, :20], cmap="viridis")
+    st.pyplot(fig)
 
-        Button(root, text="Load CSV", command=self.load_data).pack(pady=5)
-        Button(root, text="Plot Heatmap", command=self.plot_heatmap).pack(pady=5)
-        Button(root, text="Violin Plot", command=self.plot_violin).pack(pady=5)
-        Button(root, text="PCA Plot", command=self.plot_pca).pack(pady=5)
-        Button(root, text="KMeans Clustering", command=self.apply_kmeans).pack(pady=5)
+@st.cache_data
+def plot_violin(df):
+    subset = df.loc[["Gene_1", "Gene_2", "Gene_3"]].T
+    melted = subset.melt(var_name="Gene", value_name="Expression")
+    
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.violinplot([melted[melted["Gene"] == gene]["Expression"].values for gene in melted["Gene"].unique()])
+    ax.set_xticks(range(1, len(melted["Gene"].unique()) + 1))
+    ax.set_xticklabels(melted["Gene"].unique())
+    ax.set_ylabel("Expression")
+    ax.set_title("Violin Plot of Gene Expressions")
+    st.pyplot(fig)
 
-    def load_data(self):
-        file_path = filedialog.askopenfilename(filetypes=[("CSV files", "*.csv")])
-        if file_path:
-            self.df = pd.read_csv(file_path, index_col=0)
-            self.df = self.df.apply(pd.to_numeric)
-            print("✅ Data loaded successfully!")
+@st.cache_data
+def plot_pca(df):
+    from sklearn.decomposition import PCA
+    from sklearn.preprocessing import StandardScaler
 
-    def plot_heatmap(self):
-        if self.df is not None:
-            fig, ax = plt.subplots(figsize=(10, 6))
-            sns.heatmap(self.df.iloc[:20, :20], cmap="viridis", ax=ax)
-            self.display_plot(fig)
+    scaler = StandardScaler()
+    data = scaler.fit_transform(df.T)
+    pca = PCA(n_components=2)
+    components = pca.fit_transform(data)
+    pca_df = pd.DataFrame(components, columns=["PC1", "PC2"])
+    pca_df["Cell"] = df.columns
 
-    def plot_violin(self):
-        if self.df is not None:
-            subset = self.df.loc[["Gene_1", "Gene_2", "Gene_3"]].T
-            melted = subset.melt(var_name="Gene", value_name="Expression")
-            fig, ax = plt.subplots(figsize=(8, 5))
-            sns.violinplot(x="Gene", y="Expression", data=melted, inner="box", ax=ax)
-            self.display_plot(fig)
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.scatter(pca_df["PC1"], pca_df["PC2"])
+    ax.set_title("PCA of Cells")
+    st.pyplot(fig)
 
-    def plot_pca(self):
-        if self.df is not None:
-            scaler = StandardScaler()
-            data = scaler.fit_transform(self.df.T)
-            pca = PCA(n_components=2)
-            components = pca.fit_transform(data)
-            pca_df = pd.DataFrame(components, columns=["PC1", "PC2"])
-            pca_df["Cell"] = self.df.columns
+@st.cache_data
+def apply_kmeans(df):
+    from sklearn.decomposition import PCA
+    from sklearn.cluster import KMeans
+    from sklearn.preprocessing import StandardScaler
 
-            fig, ax = plt.subplots(figsize=(8, 5))
-            sns.scatterplot(data=pca_df, x="PC1", y="PC2", ax=ax)
-            ax.set_title("PCA of Cells")
-            self.display_plot(fig)
+    data = StandardScaler().fit_transform(df.T)
+    kmeans = KMeans(n_clusters=3, random_state=42)
+    clusters = kmeans.fit_predict(data)
 
-    def apply_kmeans(self):
-        if self.df is not None:
-            data = StandardScaler().fit_transform(self.df.T)
-            kmeans = KMeans(n_clusters=3, random_state=42)
-            clusters = kmeans.fit_predict(data)
+    pca = PCA(n_components=2)
+    reduced = pca.fit_transform(data)
+    cluster_df = pd.DataFrame(reduced, columns=["PC1", "PC2"])
+    cluster_df["Cluster"] = clusters
 
-            pca = PCA(n_components=2)
-            reduced = pca.fit_transform(data)
-            cluster_df = pd.DataFrame(reduced, columns=["PC1", "PC2"])
-            cluster_df["Cluster"] = clusters
+    fig, ax = plt.subplots(figsize=(8, 5))
+    scatter = ax.scatter(cluster_df["PC1"], cluster_df["PC2"], c=cluster_df["Cluster"], cmap="Set2")
+    ax.set_title("KMeans Clustering on Cells")
+    st.pyplot(fig)
 
-            fig, ax = plt.subplots(figsize=(8, 5))
-            sns.scatterplot(data=cluster_df, x="PC1", y="PC2", hue="Cluster", palette="Set2", ax=ax)
-            ax.set_title("KMeans Clustering on Cells")
-            self.display_plot(fig)
+# Streamlit App
+def main():
+    st.title("Single Cell Omics Analyzer")
 
-    def display_plot(self, fig):
-        canvas = FigureCanvasTkAgg(fig, master=self.root)
-        canvas.draw()
-        canvas.get_tk_widget().pack(pady=10)
+    uploaded_file = st.file_uploader("Upload CSV File", type="csv")
+    
+    if uploaded_file is not None:
+        df = load_data(uploaded_file)
+        st.success("✅ Data loaded successfully!")
+        
+        if st.button("Plot Heatmap"):
+            plot_heatmap(df)
 
-# --- Run GUI ---
+        if st.button("Plot Violin Plot"):
+            plot_violin(df)
+
+        if st.button("Plot PCA"):
+            plot_pca(df)
+
+        if st.button("Apply KMeans Clustering"):
+            apply_kmeans(df)
+
 if __name__ == "__main__":
-    root = Tk()
-    app = SingleCellApp(root)
-    root.mainloop()
-
+    main()
