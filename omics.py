@@ -1,5 +1,7 @@
 import pandas as pd
 import streamlit as st
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 @st.cache_data
 def load_data(file_path):
@@ -10,28 +12,31 @@ def load_data(file_path):
     return df
 
 @st.cache_data
-def plot_heatmap(df):
-    """Plot a heatmap of the gene expression data using Streamlit."""
-    st.write("Heatmap of Gene Expressions")
-    # Slice the first 20 rows and columns for the heatmap display
-    st.dataframe(df.iloc[:20, :20])
+def plot_correlation_heatmap(df):
+    """Plot a correlation heatmap of the gene expression data."""
+    # Calculate the correlation matrix
+    corr = df.corr()
+    
+    # Create a heatmap of the correlation matrix
+    plt.figure(figsize=(12, 8))
+    sns.heatmap(corr, annot=True, cmap='coolwarm', fmt='.2f', linewidths=0.5)
+    plt.title('Correlation Heatmap of Gene Expression')
+    
+    # Display the heatmap using Streamlit
+    st.pyplot(plt)
 
 @st.cache_data
-def plot_violin(df):
-    """Plot a violin plot of the expression of selected genes."""
-    # Select top 10 genes for the plot (as an example)
+def plot_line_graph(df):
+    """Plot a line graph of the expression of selected genes over time or samples."""
+    # Select top 10 genes for the line graph (as an example)
     selected_genes = df.iloc[:10, :].T
-    # Using Streamlit to visualize the selected gene expressions
-    st.write("Bar Chart of Gene Expression Means")
-    st.bar_chart(selected_genes.mean(axis=1))
-
-@st.cache_data
-def plot_bar(df):
-    """Plot a bar chart of the mean expression for each gene."""
-    mean_expression = df.mean(axis=1)
-    # Using Streamlit's built-in bar chart functionality
-    st.write("Bar Chart of Mean Gene Expression")
-    st.bar_chart(mean_expression)
+    
+    # Plot a line graph for selected genes
+    st.write("Gene Expression Line Graph")
+    selected_genes.plot(kind='line', figsize=(10, 6))
+    
+    # Display the plot using Streamlit
+    st.pyplot(plt)
 
 # Streamlit App
 def main():
@@ -47,17 +52,13 @@ def main():
         # Display options to plot different visualizations
         st.subheader("Choose a plot to display:")
 
-        # Plot Heatmap
-        if st.button("Plot Heatmap"):
-            plot_heatmap(df)
+        # Plot Correlation Heatmap
+        if st.button("Plot Correlation Heatmap"):
+            plot_correlation_heatmap(df)
 
-        # Plot Bar Chart for Selected Genes (substitute for the violin plot)
-        if st.button("Plot Gene Expression Bar Chart"):
-            plot_violin(df)
-
-        # Plot Bar Chart of Mean Expression
-        if st.button("Plot Bar Chart of Mean Expression"):
-            plot_bar(df)
+        # Plot Line Graph for Selected Genes
+        if st.button("Plot Gene Expression Line Graph"):
+            plot_line_graph(df)
 
 if __name__ == "__main__":
     main()
