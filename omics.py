@@ -4,74 +4,69 @@ import streamlit as st
 @st.cache_data
 def load_data(file_path):
     df = pd.read_csv(file_path, index_col=0)
-    df = df.apply(pd.to_numeric)
+    df = df.apply(pd.to_numeric, errors='coerce')  # Convert to numeric, coercing errors
     return df
 
 @st.cache_data
 def plot_heatmap(df):
     st.write("Heatmap of Data (Top 20 rows and columns)")
-    st.line_chart(df.iloc[:20, :20])  # Display the heatmap as line charts for simplicity
+    st.line_chart(df.iloc[:20, :20])  # Consider using a heatmap library for actual heatmaps
 
 @st.cache_data
 def plot_violin(df):
-    # Plot gene expression values using Streamlit's built-in charts
     st.write("Violin Plot of Gene Expressions (sample)")
-    subset = df.loc[["Gene_1", "Gene_2", "Gene_3"]].T
-    st.line_chart(subset)  # Display gene expressions as line charts
+    subset = df.loc[["Gene_1", "Gene_2", "Gene_3"]].T  # Ensure these genes exist in df
+    st.line_chart(subset)
 
 @st.cache_data
 def plot_pca(df):
-    # Manual PCA implementation without numpy or sklearn
-    # Step 1: Center the data by subtracting the mean
-    means = {col: df[col].mean() for col in df.columns}
+    st.write("PCA of Cells")
+    
+    # Center the data
     centered_data = df - df.mean(axis=0)
-
-    # Step 2: Compute the covariance matrix
-    covariance_matrix = [[sum(centered_data.iloc[i][col1] * centered_data.iloc[i][col2] for i in range(len(df)))
-                         for col1 in df.columns] for col2 in df.columns]
-
-    # Step 3: Eigen decomposition of the covariance matrix (manually, not optimal but works for small cases)
-    # This part is a simplified approximation, as real eigenvalue/eigenvector calculation requires advanced methods
-    # We will skip actual eigen decomposition due to complexity and return basic principal components instead
 
     # For simplicity, let's return the first two columns as "PCA" components
     pca_df = pd.DataFrame(centered_data.iloc[:, :2], columns=["PC1", "PC2"])
-    pca_df["Cell"] = df.columns  # Fix: Use df.columns for the index
+    pca_df["Cell"] = df.columns
 
-    st.write("PCA of Cells")
-    st.line_chart(pca_df[['PC1', 'PC2']])  # Display PCA components as line chart
+    st.line_chart(pca_df[['PC1', 'PC2']])
+
+def random_centroids(k, data):
+    """Randomly initialize centroids from the data."""
+    return [data[i] for i in range(k)] if len(data) >= k else []
+
+def assign_clusters(centroids, data):
+    """Assign each point to the nearest centroid."""
+    clusters = []
+    for point in data:
+        distances = [sum((point[i] - centroid[i])**2 for i in range(len(point)))**0.5 for centroid in centroids]
+        clusters.append(distances.index(min(distances)))
+    return clusters
+
+def recalculate_centroids(k, clusters, data):
+    """Recalculate centroids based on current clusters."""
+    centroids = []
+    for cluster_idx in range(k):
+        cluster_points = [data[i] for i in range(len(data)) if clusters[i] == cluster_idx]
+        if cluster_points:
+            new_centroid = [sum(point[i] for point in cluster_points) / len(cluster_points) for i in range(len(cluster_points[0]))]
+            centroids.append(new_centroid)
+        else:
+            centroids.append([0] * len(data[0]))  # If empty, assign a zero vector
+    return centroids
 
 @st.cache_data
 def apply_kmeans(df):
-    # Simple KMeans implementation without sklearn or numpy
-    # Step 1: Randomly initialize centroids
-    def random_centroids(k, data):
-        return [data[i] for i in range(k)]
-
-    # Step 2: Assign each point to the nearest centroid (basic Euclidean distance)
-    def assign_clusters(centroids, data):
-        clusters = []
-        for point in data:
-            distances = [sum((point[i] - centroid[i])**2 for i in range(len(point)))**0.5 for centroid in centroids]
-            clusters.append(distances.index(min(distances)))
-        return clusters
-
-    # Step 3: Recalculate centroids based on current clusters
-    def recalculate_centroids(k, clusters, data):
-        centroids = []
-        for cluster_idx in range(k):
-            cluster_points = [data[i] for i in range(len(data)) if clusters[i] == cluster_idx]
-            if cluster_points:
-                new_centroid = [sum(point[i] for point in cluster_points) / len(cluster_points) for i in range(len(cluster_points[0]))]
-                centroids.append(new_centroid)
-            else:
-                centroids.append([0] * len(data[0]))  # Handle empty cluster by adding zero vector
-        return centroids
-
-    # KMeans algorithm
+    st.write("KMeans Clustering on Cells")
+    
     k = 3
     data = df.T.values.tolist()  # Convert DataFrame to list of lists
     centroids = random_centroids(k, data)
+
+    if not centroids:
+        st.error("Not enough data points to initialize centroids.")
+        return
+
     prev_centroids = None
     clusters = []
 
@@ -80,24 +75,25 @@ def apply_kmeans(df):
         clusters = assign_clusters(centroids, data)
         centroids = recalculate_centroids(k, clusters, data)
 
-    # After KMeans convergence, display results
-    cluster_df = pd.DataFrame(centroids, columns=["PC1", "PC2"])  # Fix: Ensure correct structure of centroids
-    cluster_df["Cluster"] = range(k)  # Add cluster label (just an example)
-
-    st.write("KMeans Clustering on Cells")
-    st.line_chart(cluster_df[['PC1', 'PC2']])  # Visualize the PCA-reduced clusters as line chart
+    # After KMeans convergence
+    if centroids:
+        cluster_df = pd.DataFrame(centroids, columns=["PC1", "PC2"])
+        cluster_df["Cluster"] = range(k)
+        st.line_chart(cluster_df[['PC1', 'PC2']])
+    else:
+        st.error("No centroids were computed, please check your data.")
 
 # Streamlit App
 def main():
     st.title("Single Cell Omics Analyzer")
 
     uploaded_file = st.file_uploader("Upload CSV File", type="csv")
-    
+
     if uploaded_file is not None:
         df = load_data(uploaded_file)
         st.success("✅ Data loaded successfully!")
-        st.write(df.head())  # Show first few rows
-        
+        st.write(df.head()) 
+
         if st.button("Plot Heatmap"):
             plot_heatmap(df)
 
