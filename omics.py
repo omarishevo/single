@@ -1,86 +1,83 @@
 import pandas as pd
 import streamlit as st
+import numpy as np
 
 @st.cache_data
 def load_data(file_path):
     """Load data from a CSV file."""
     df = pd.read_csv(file_path, index_col=0)
-    df = df.apply(pd.to_numeric)  # Convert all data to numeric, if not already
+    df = df.apply(pd.to_numeric)  # Ensure all data is numeric
     return df
 
 @st.cache_data
 def plot_heatmap(df):
-    """Plot a simple heatmap of the first 20 rows and columns using Streamlit's line_chart."""
-    subset = df.iloc[:20, :20]
-    st.line_chart(subset)  # Simple line chart as a heatmap alternative
+    """Plot a simple heatmap using Streamlit's line_chart."""
+    subset = df.iloc[:20, :20]  # Taking top 20 rows and columns for heatmap
+    st.line_chart(subset)  # Simple line chart for heatmap
 
 @st.cache_data
 def plot_violin(df):
-    """Plot a simple bar chart for selected genes."""
+    """Plot gene expression using Streamlit's bar_chart."""
     subset = df.loc[["Gene_1", "Gene_2", "Gene_3"]].T
     melted = subset.melt(var_name="Gene", value_name="Expression")
-    
     st.bar_chart(melted['Expression'])  # Plot expression values using a bar chart
 
 @st.cache_data
 def pca(df):
-    """Simplified PCA using basic covariance matrix and eigenvalue/eigenvector method."""
+    """Perform PCA manually (using covariance matrix and eigen decomposition)."""
     # Center the data (subtract the mean from each column)
     df_centered = df - df.mean(axis=0)
 
     # Calculate covariance matrix
     covariance_matrix = df_centered.cov()
 
-    # Eigenvalue and Eigenvector computation using pandas' covariance matrix
-    eigenvalues, eigenvectors = pd.np.linalg.eig(covariance_matrix.values)
+    # Eigenvalue and Eigenvector calculation (using numpy)
+    eigenvalues, eigenvectors = np.linalg.eig(covariance_matrix)
 
-    # Sort eigenvalues and corresponding eigenvectors
+    # Sort eigenvalues and eigenvectors in descending order
     sorted_indices = eigenvalues.argsort()[::-1]
     eigenvalues_sorted = eigenvalues[sorted_indices]
     eigenvectors_sorted = eigenvectors[:, sorted_indices]
 
-    # Select top 2 eigenvectors for PCA
+    # Select the top 2 eigenvectors
     pca_result = df_centered.dot(eigenvectors_sorted[:, :2])
 
+    # Create a DataFrame with the PCA results
     pca_df = pd.DataFrame(pca_result, columns=["PC1", "PC2"])
-    pca_df["Cell"] = df.columns  # Ensure alignment with original cells
 
     return pca_df
 
 @st.cache_data
 def apply_kmeans(df, n_clusters=3):
-    """Apply KMeans clustering with basic implementation."""
+    """Perform KMeans clustering manually and plot results."""
     # Center the data (subtract the mean from each column)
     df_centered = df - df.mean(axis=0)
 
-    # Initialize cluster centroids (randomly from the data)
+    # Randomly initialize centroids from the data
     centroids = df_centered.sample(n=n_clusters, axis=1).values.T
 
     prev_centroids = centroids.copy()
     while True:
-        # Calculate Euclidean distances to centroids
-        distances = ((df_centered.T.values - centroids[:, np.newaxis])**2).sum(axis=2)
+        # Calculate the distances from the data points to the centroids
+        distances = np.linalg.norm(df_centered.T.values[:, np.newaxis] - centroids, axis=2)
+        
+        # Assign each point to the nearest centroid
         clusters = distances.argmin(axis=1)
 
-        # Update centroids
-        new_centroids = []
-        for i in range(n_clusters):
-            cluster_points = df_centered.iloc[:, clusters == i]
-            new_centroids.append(cluster_points.mean(axis=1))
+        # Update centroids by averaging the points in each cluster
+        new_centroids = np.array([df_centered.iloc[:, clusters == i].mean(axis=1) for i in range(n_clusters)]).T
 
-        centroids = pd.DataFrame(new_centroids).T.values
-        centroids = centroids.T
-
-        # Check for convergence
-        if np.allclose(centroids, prev_centroids):
+        # Check if centroids have converged
+        if np.allclose(new_centroids, prev_centroids):
             break
-        prev_centroids = centroids
+        prev_centroids = new_centroids
 
+    # Plot the PCA result with clusters
     pca_df = pca(df)
     pca_df["Cluster"] = clusters
 
-    # Simple bar chart for cluster visualization
-    st.bar_chart(pca_df["Cluster"])
+    # Plot the PCA results with clusters using Streamlit's bar chart
+    st.bar_chart(pca_df['Cluster'])
 
 # Streamlit App
 def main():
