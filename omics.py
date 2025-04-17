@@ -36,7 +36,7 @@ def plot_pca(df):
 
     # For simplicity, let's return the first two columns as "PCA" components
     pca_df = pd.DataFrame(centered_data.iloc[:, :2], columns=["PC1", "PC2"])
-    pca_df["Cell"] = df.columns
+    pca_df["Cell"] = df.columns  # Fix: Use df.columns for the index
 
     st.write("PCA of Cells")
     st.line_chart(pca_df[['PC1', 'PC2']])  # Display PCA components as line chart
