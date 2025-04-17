@@ -1,5 +1,6 @@
 import pandas as pd
 import streamlit as st
+import numpy as np
 
 @st.cache_data
 def load_data(file_path):
@@ -9,85 +10,64 @@ def load_data(file_path):
 
 @st.cache_data
 def plot_heatmap(df):
-    st.write("Heatmap of Data (Top 20 rows and columns)")
-    st.line_chart(df.iloc[:20, :20])  # Display the heatmap as line charts for simplicity
+    fig = px.imshow(df.iloc[:20, :20], color_continuous_scale="Viridis", title="Heatmap of Data")
+    st.plotly_chart(fig)
 
 @st.cache_data
 def plot_violin(df):
-    # Plot gene expression values using Streamlit's built-in charts
-    st.write("Violin Plot of Gene Expressions (sample)")
     subset = df.loc[["Gene_1", "Gene_2", "Gene_3"]].T
-    st.line_chart(subset)  # Display gene expressions as line charts
+    melted = subset.melt(var_name="Gene", value_name="Expression")
+    
+    fig = px.violin(melted, x="Gene", y="Expression", box=True, title="Violin Plot of Gene Expressions")
+    st.plotly_chart(fig)
 
 @st.cache_data
 def plot_pca(df):
-    # Manual PCA implementation without numpy or sklearn
-    # Step 1: Center the data by subtracting the mean
-    means = {col: df[col].mean() for col in df.columns}
-    centered_data = df - df.mean(axis=0)
+    # Ensure df is transposed if necessary so that we perform PCA on samples (rows)
+    if df.shape[0] > df.shape[1]:  # If more genes (features) than samples (cells), transpose
+        df = df.T
 
-    # Step 2: Compute the covariance matrix
-    covariance_matrix = [[sum(centered_data.iloc[i][col1] * centered_data.iloc[i][col2] for i in range(len(df)))
-                         for col1 in df.columns] for col2 in df.columns]
+    # Standardize the data: subtract the mean and divide by the standard deviation
+    df_standardized = (df - df.mean(axis=0)) / df.std(axis=0)
 
-    # Step 3: Eigen decomposition of the covariance matrix (manually, not optimal but works for small cases)
-    # This part is a simplified approximation, as real eigenvalue/eigenvector calculation requires advanced methods
-    # We will skip actual eigen decomposition due to complexity and return basic principal components instead
+    # Perform PCA manually (simplified version)
+    covariance_matrix = df_standardized.cov()  # Compute covariance matrix
+    eigenvalues, eigenvectors = np.linalg.eig(covariance_matrix)  # Eigenvalue decomposition
 
-    # For simplicity, let's return the first two columns as "PCA" components
-    pca_df = pd.DataFrame(centered_data.iloc[:, :2], columns=["PC1", "PC2"])
+    # Sort eigenvalues and eigenvectors
+    sorted_indices = np.argsort(eigenvalues)[::-1]  # Sort in descending order
+    eigenvalues = eigenvalues[sorted_indices]
+    eigenvectors = eigenvectors[:, sorted_indices]
 
-    # Fix: Ensure "Cell" corresponds to the correct length and matches the number of samples
-    pca_df["Cell"] = df.columns[:pca_df.shape[0]]  # Ensure length matches number of PCA rows
+    # Select the top 2 eigenvectors (for 2D PCA)
+    top_eigenvectors = eigenvectors[:, :2]
+    pca_result = df_standardized.dot(top_eigenvectors)  # Project the data into the PCA space
 
-    st.write("PCA of Cells")
-    st.line_chart(pca_df[['PC1', 'PC2']])  # Display PCA components as line chart
+    # Create a DataFrame for PCA results
+    pca_df = pd.DataFrame(pca_result, columns=["PC1", "PC2"])
+    pca_df["Cell"] = df.index  # Ensure the row indices (cells) match the PCA result
+
+    # Plot the PCA results
+    fig = px.scatter(pca_df, x="PC1", y="PC2", title="PCA of Cells")
+    st.plotly_chart(fig)
 
 @st.cache_data
 def apply_kmeans(df):
-    # Simple KMeans implementation without sklearn or numpy
-    # Step 1: Randomly initialize centroids
-    def random_centroids(k, data):
-        return [data[i] for i in range(k)]
+    from sklearn.decomposition import PCA
+    from sklearn.cluster import KMeans
+    from sklearn.preprocessing import StandardScaler
 
-    # Step 2: Assign each point to the nearest centroid (basic Euclidean distance)
-    def assign_clusters(centroids, data):
-        clusters = []
-        for point in data:
-            distances = [sum((point[i] - centroid[i])**2 for i in range(len(point)))**0.5 for centroid in centroids]
-            clusters.append(distances.index(min(distances)))
-        return clusters
+    data = StandardScaler().fit_transform(df.T)
+    kmeans = KMeans(n_clusters=3, random_state=42)
+    clusters = kmeans.fit_predict(data)
 
-    # Step 3: Recalculate centroids based on current clusters
-    def recalculate_centroids(k, clusters, data):
-        centroids = []
-        for cluster_idx in range(k):
-            cluster_points = [data[i] for i in range(len(data)) if clusters[i] == cluster_idx]
-            if cluster_points:
-                new_centroid = [sum(point[i] for point in cluster_points) / len(cluster_points) for i in range(len(cluster_points[0]))]
-                centroids.append(new_centroid)
-            else:
-                centroids.append([0] * len(data[0]))  # Handle empty cluster by adding zero vector
-        return centroids
+    pca = PCA(n_components=2)
+    reduced = pca.fit_transform(data)
+    cluster_df = pd.DataFrame(reduced, columns=["PC1", "PC2"])
+    cluster_df["Cluster"] = clusters
 
-    # KMeans algorithm
-    k = 3
-    data = df.T.values.tolist()  # Convert DataFrame to list of lists
-    centroids = random_centroids(k, data)
-    prev_centroids = None
-    clusters = []
-
-    while centroids != prev_centroids:
-        prev_centroids = centroids
-        clusters = assign_clusters(centroids, data)
-        centroids = recalculate_centroids(k, clusters, data)
-
-    # After KMeans convergence, display results
-    cluster_df = pd.DataFrame(centroids, columns=["PC1", "PC2"])  # Fix: Ensure correct structure of centroids
-    cluster_df["Cluster"] = range(k)  # Add cluster label (just an example)
-
-    st.write("KMeans Clustering on Cells")
-    st.line_chart(cluster_df[['PC1', 'PC2']])  # Visualize the PCA-reduced clusters as line chart
+    fig = px.scatter(cluster_df, x="PC1", y="PC2", color="Cluster", title="KMeans Clustering on Cells")
+    st.plotly_chart(fig)
 
 # Streamlit App
 def main():
@@ -98,7 +78,6 @@ def main():
     if uploaded_file is not None:
         df = load_data(uploaded_file)
         st.success("✅ Data loaded successfully!")
-        st.write(df.head())  # Show first few rows
         
         if st.button("Plot Heatmap"):
             plot_heatmap(df)
