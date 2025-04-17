@@ -1,7 +1,5 @@
 import pandas as pd
 import streamlit as st
-import seaborn as sns
-import matplotlib.pyplot as plt
 
 @st.cache_data
 def load_data(file_path):
@@ -17,13 +15,12 @@ def plot_correlation_heatmap(df):
     # Calculate the correlation matrix
     corr = df.corr()
     
-    # Create a heatmap of the correlation matrix
-    plt.figure(figsize=(12, 8))
-    sns.heatmap(corr, annot=True, cmap='coolwarm', fmt='.2f', linewidths=0.5)
-    plt.title('Correlation Heatmap of Gene Expression')
+    # Plot the correlation heatmap using Pandas plot method
+    st.write("Correlation Heatmap of Gene Expression")
+    st.dataframe(corr)  # Display the correlation matrix as a dataframe
     
-    # Display the heatmap using Streamlit
-    st.pyplot(plt)
+    # Plot the correlation matrix as a heatmap using Streamlit's built-in functionality
+    st.line_chart(corr)
 
 @st.cache_data
 def plot_line_graph(df):
@@ -31,12 +28,9 @@ def plot_line_graph(df):
     # Select top 10 genes for the line graph (as an example)
     selected_genes = df.iloc[:10, :].T
     
-    # Plot a line graph for selected genes
+    # Plot a line graph for selected genes using Streamlit
     st.write("Gene Expression Line Graph")
-    selected_genes.plot(kind='line', figsize=(10, 6))
-    
-    # Display the plot using Streamlit
-    st.pyplot(plt)
+    st.line_chart(selected_genes)
 
 # Streamlit App
 def main():
