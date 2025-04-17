@@ -10,70 +10,39 @@ def load_data(file_path):
     return df
 
 @st.cache_data
-def pca(df):
-    """Perform PCA manually (using covariance matrix and eigen decomposition)."""
-    # Center the data (subtract the mean from each column)
-    df_centered = df - df.mean(axis=0)
+def plot_heatmap(df):
+    """Plot a heatmap of the gene expression data."""
+    import seaborn as sns
+    import matplotlib.pyplot as plt
 
-    # Calculate covariance matrix
-    covariance_matrix = df_centered.cov()
-
-    # Eigenvalue and Eigenvector calculation (using numpy)
-    eigenvalues, eigenvectors = np.linalg.eig(covariance_matrix)
-
-    # Sort eigenvalues and eigenvectors in descending order
-    sorted_indices = eigenvalues.argsort()[::-1]
-    eigenvalues_sorted = eigenvalues[sorted_indices]
-    eigenvectors_sorted = eigenvectors[:, sorted_indices]
-
-    # Select the top 2 eigenvectors
-    pca_result = df_centered.dot(eigenvectors_sorted[:, :2])
-
-    # Create a DataFrame with the PCA results
-    pca_df = pd.DataFrame(pca_result, columns=["PC1", "PC2"])
-
-    return pca_df
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(df.iloc[:20, :20], cmap='viridis', annot=True, fmt=".2f")
+    st.pyplot(plt)
 
 @st.cache_data
-def apply_kmeans(df, n_clusters=3):
-    """Perform KMeans clustering manually and plot results."""
-    # Center the data (subtract the mean from each column)
-    df_centered = df - df.mean(axis=0)
+def plot_violin(df):
+    """Plot a violin plot of the expression of selected genes."""
+    import seaborn as sns
+    import matplotlib.pyplot as plt
 
-    # Randomly initialize centroids from the data (3 random rows as centroids)
-    centroids = df_centered.sample(n=n_clusters, axis=1).values.T
+    selected_genes = df.iloc[:10, :].T
+    selected_genes = selected_genes.melt(var_name="Gene", value_name="Expression")
+    
+    plt.figure(figsize=(10, 6))
+    sns.violinplot(x="Gene", y="Expression", data=selected_genes)
+    plt.title("Violin Plot of Gene Expression")
+    st.pyplot(plt)
 
-    prev_centroids = np.zeros_like(centroids)  # Initialize previous centroids as zeros
-    clusters = np.zeros(df_centered.shape[0])  # Initialize cluster assignments
+@st.cache_data
+def plot_bar(df):
+    """Plot a bar chart of the mean expression for each gene."""
+    mean_expression = df.mean(axis=1)
 
-    while True:
-        # Calculate the distances from the data points to the centroids
-        distances = np.linalg.norm(df_centered.T.values[:, np.newaxis] - centroids, axis=2)
-
-        # Assign each point to the nearest centroid
-        new_clusters = distances.argmin(axis=1)
-
-        # If the cluster assignments don't change, the algorithm has converged
-        if np.array_equal(new_clusters, clusters):
-            break
-
-        # Update clusters and centroids
-        clusters = new_clusters
-
-        # Update centroids by averaging the points in each cluster
-        new_centroids = np.array([df_centered.iloc[:, clusters == i].mean(axis=1) for i in range(n_clusters)]).T
-
-        # Check if centroids have converged
-        if np.allclose(new_centroids, prev_centroids):
-            break
-
-        prev_centroids = new_centroids
-
-    # Plot the PCA result with clusters
-    pca_df = pca(df)
-    pca_df["Cluster"] = clusters
-
-    return pca_df, centroids
+    plt.figure(figsize=(10, 6))
+    mean_expression.sort_values(ascending=False).plot(kind='bar', color='skyblue')
+    plt.title("Mean Expression of Genes")
+    plt.ylabel("Mean Expression")
+    st.pyplot(plt)
 
 # Streamlit App
 def main():
@@ -85,24 +54,17 @@ def main():
         df = load_data(uploaded_file)
         st.success("✅ Data loaded successfully!")
 
-        # Plot PCA
-        if st.button("Plot PCA"):
-            pca_df = pca(df)
-            st.write("### PCA Plot")
-            st.write("Visualizing the first two principal components of the dataset.")
-            st.scatter_chart(pca_df)  # Plot PCA in 2D
+        # Plot Heatmap
+        if st.button("Plot Heatmap"):
+            plot_heatmap(df)
 
-        # Apply KMeans and plot with PCA results
-        if st.button("Apply KMeans Clustering"):
-            pca_df, centroids = apply_kmeans(df)
-            st.write("### PCA with KMeans Clusters")
-            st.write("Visualizing the PCA results with KMeans clustering.")
-            st.scatter_chart(pca_df[["PC1", "PC2"]])  # Plot PCA in 2D with clusters
+        # Plot Violin Plot
+        if st.button("Plot Violin Plot"):
+            plot_violin(df)
 
-            # Optionally display the centroids
-            st.write("### KMeans Centroids")
-            st.write("Centroids of the KMeans clusters in PCA space:")
-            st.write(centroids)
+        # Plot Bar Chart of Mean Expression
+        if st.button("Plot Bar Chart of Mean Expression"):
+            plot_bar(df)
 
 if __name__ == "__main__":
     main()
