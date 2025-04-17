@@ -1,73 +1,79 @@
 import pandas as pd
 import streamlit as st
-import numpy as np
 
 @st.cache_data
 def load_data(file_path):
+    """Load data from a CSV file."""
     df = pd.read_csv(file_path, index_col=0)
-    df = df.apply(pd.to_numeric)
+    df = df.apply(pd.to_numeric)  # Convert all data to numeric, if not already
     return df
 
 @st.cache_data
 def plot_heatmap(df):
-    fig = px.imshow(df.iloc[:20, :20], color_continuous_scale="Viridis", title="Heatmap of Data")
-    st.plotly_chart(fig)
+    """Plot a simple heatmap of the first 20 rows and columns using Streamlit's line_chart."""
+    subset = df.iloc[:20, :20]
+    st.line_chart(subset)  # Simple line chart as a heatmap alternative
 
 @st.cache_data
 def plot_violin(df):
+    """Plot a simple bar chart for selected genes."""
     subset = df.loc[["Gene_1", "Gene_2", "Gene_3"]].T
     melted = subset.melt(var_name="Gene", value_name="Expression")
     
-    fig = px.violin(melted, x="Gene", y="Expression", box=True, title="Violin Plot of Gene Expressions")
-    st.plotly_chart(fig)
+    st.bar_chart(melted['Expression'])  # Plot expression values using a bar chart
 
 @st.cache_data
-def plot_pca(df):
-    # Ensure df is transposed if necessary so that we perform PCA on samples (rows)
-    if df.shape[0] > df.shape[1]:  # If more genes (features) than samples (cells), transpose
-        df = df.T
+def pca(df):
+    """Simplified PCA using basic covariance matrix and eigenvalue/eigenvector method."""
+    # Center the data (subtract the mean from each column)
+    df_centered = df - df.mean(axis=0)
 
-    # Standardize the data: subtract the mean and divide by the standard deviation
-    df_standardized = (df - df.mean(axis=0)) / df.std(axis=0)
+    # Calculate covariance matrix
+    covariance_matrix = df_centered.cov()
 
-    # Perform PCA manually (simplified version)
-    covariance_matrix = df_standardized.cov()  # Compute covariance matrix
-    eigenvalues, eigenvectors = np.linalg.eig(covariance_matrix)  # Eigenvalue decomposition
+    # Eigenvalue and Eigenvector computation using pandas' covariance matrix
+    eigenvalues, eigenvectors = pd.np.linalg.eig(covariance_matrix)
 
-    # Sort eigenvalues and eigenvectors
-    sorted_indices = np.argsort(eigenvalues)[::-1]  # Sort in descending order
-    eigenvalues = eigenvalues[sorted_indices]
-    eigenvectors = eigenvectors[:, sorted_indices]
+    # Sort eigenvalues and corresponding eigenvectors
+    sorted_indices = eigenvalues.argsort()[::-1]
+    eigenvalues_sorted = eigenvalues[sorted_indices]
+    eigenvectors_sorted = eigenvectors[:, sorted_indices]
 
-    # Select the top 2 eigenvectors (for 2D PCA)
-    top_eigenvectors = eigenvectors[:, :2]
-    pca_result = df_standardized.dot(top_eigenvectors)  # Project the data into the PCA space
+    # Select top 2 eigenvectors for PCA
+    pca_result = df_centered.dot(eigenvectors_sorted[:, :2])
 
-    # Create a DataFrame for PCA results
     pca_df = pd.DataFrame(pca_result, columns=["PC1", "PC2"])
-    pca_df["Cell"] = df.index  # Ensure the row indices (cells) match the PCA result
+    pca_df["Cell"] = df.columns  # Ensure alignment with original cells
 
-    # Plot the PCA results
-    fig = px.scatter(pca_df, x="PC1", y="PC2", title="PCA of Cells")
-    st.plotly_chart(fig)
+    return pca_df
 
 @st.cache_data
-def apply_kmeans(df):
-    from sklearn.decomposition import PCA
-    from sklearn.cluster import KMeans
-    from sklearn.preprocessing import StandardScaler
+def apply_kmeans(df, n_clusters=3):
+    """Apply KMeans clustering with basic implementation."""
+    # Center the data (subtract the mean from each column)
+    df_centered = df - df.mean(axis=0)
 
-    data = StandardScaler().fit_transform(df.T)
-    kmeans = KMeans(n_clusters=3, random_state=42)
-    clusters = kmeans.fit_predict(data)
+    # Initialize cluster centroids (randomly from the data)
+    centroids = df.sample(n=n_clusters, axis=1).values.T
 
-    pca = PCA(n_components=2)
-    reduced = pca.fit_transform(data)
-    cluster_df = pd.DataFrame(reduced, columns=["PC1", "PC2"])
-    cluster_df["Cluster"] = clusters
+    prev_centroids = centroids.copy()
+    while True:
+        # Calculate Euclidean distances to centroids
+        distances = ((df_centered.T - centroids[:, np.newaxis])**2).sum(axis=2)
+        clusters = distances.argmin(axis=1)
 
-    fig = px.scatter(cluster_df, x="PC1", y="PC2", color="Cluster", title="KMeans Clustering on Cells")
-    st.plotly_chart(fig)
+        # Update centroids
+        centroids = np.array([df_centered.iloc[:, clusters == i].mean(axis=1) for i in range(n_clusters)]).T
+
+        if np.allclose(centroids, prev_centroids):
+            break
+        prev_centroids = centroids
+
+    pca_df = pca(df)
+    pca_df["Cluster"] = clusters
+
+    # Simple bar chart for cluster visualization
+    st.bar_chart(pca_df["Cluster"])
 
 # Streamlit App
 def main():
@@ -86,7 +92,8 @@ def main():
             plot_violin(df)
 
         if st.button("Plot PCA"):
-            plot_pca(df)
+            pca_df = pca(df)
+            st.line_chart(pca_df[["PC1", "PC2"]])
 
         if st.button("Apply KMeans Clustering"):
             apply_kmeans(df)
