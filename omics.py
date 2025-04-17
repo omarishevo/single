@@ -64,6 +64,8 @@ def apply_kmeans(df):
             if cluster_points:
                 new_centroid = [sum(point[i] for point in cluster_points) / len(cluster_points) for i in range(len(cluster_points[0]))]
                 centroids.append(new_centroid)
+            else:
+                centroids.append([0] * len(data[0]))  # Handle empty cluster by adding zero vector
         return centroids
 
     # KMeans algorithm
@@ -79,7 +81,7 @@ def apply_kmeans(df):
         centroids = recalculate_centroids(k, clusters, data)
 
     # After KMeans convergence, display results
-    cluster_df = pd.DataFrame(centroids, columns=["PC1", "PC2"])
+    cluster_df = pd.DataFrame(centroids, columns=["PC1", "PC2"])  # Fix: Ensure correct structure of centroids
     cluster_df["Cluster"] = range(k)  # Add cluster label (just an example)
 
     st.write("KMeans Clustering on Cells")
