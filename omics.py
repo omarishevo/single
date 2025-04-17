@@ -32,7 +32,7 @@ def pca(df):
     covariance_matrix = df_centered.cov()
 
     # Eigenvalue and Eigenvector computation using pandas' covariance matrix
-    eigenvalues, eigenvectors = pd.np.linalg.eig(covariance_matrix)
+    eigenvalues, eigenvectors = pd.np.linalg.eig(covariance_matrix.values)
 
     # Sort eigenvalues and corresponding eigenvectors
     sorted_indices = eigenvalues.argsort()[::-1]
@@ -54,17 +54,24 @@ def apply_kmeans(df, n_clusters=3):
     df_centered = df - df.mean(axis=0)
 
     # Initialize cluster centroids (randomly from the data)
-    centroids = df.sample(n=n_clusters, axis=1).values.T
+    centroids = df_centered.sample(n=n_clusters, axis=1).values.T
 
     prev_centroids = centroids.copy()
     while True:
         # Calculate Euclidean distances to centroids
-        distances = ((df_centered.T - centroids[:, np.newaxis])**2).sum(axis=2)
+        distances = ((df_centered.T.values - centroids[:, np.newaxis])**2).sum(axis=2)
         clusters = distances.argmin(axis=1)
 
         # Update centroids
-        centroids = np.array([df_centered.iloc[:, clusters == i].mean(axis=1) for i in range(n_clusters)]).T
+        new_centroids = []
+        for i in range(n_clusters):
+            cluster_points = df_centered.iloc[:, clusters == i]
+            new_centroids.append(cluster_points.mean(axis=1))
 
+        centroids = pd.DataFrame(new_centroids).T.values
+        centroids = centroids.T
+
+        # Check for convergence
         if np.allclose(centroids, prev_centroids):
             break
         prev_centroids = centroids
