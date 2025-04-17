@@ -1,36 +1,35 @@
 import pandas as pd
 import streamlit as st
-import numpy as np
+import matplotlib.pyplot as plt
 
 @st.cache_data
 def load_data(file_path):
-    """Load data from a CSV file."""
+    """Load data from a CSV file and convert it to numeric."""
     df = pd.read_csv(file_path, index_col=0)
-    df = df.apply(pd.to_numeric)  # Ensure all data is numeric
+    df = df.apply(pd.to_numeric, errors='coerce')  # Convert all values to numeric, ignoring errors
     return df
 
 @st.cache_data
 def plot_heatmap(df):
     """Plot a heatmap of the gene expression data."""
-    import seaborn as sns
-    import matplotlib.pyplot as plt
-
     plt.figure(figsize=(10, 8))
-    sns.heatmap(df.iloc[:20, :20], cmap='viridis', annot=True, fmt=".2f")
+    # Plotting using matplotlib's imshow to create a heatmap
+    plt.imshow(df.iloc[:20, :20], cmap='viridis', aspect='auto')
+    plt.colorbar(label="Expression")
+    plt.title("Heatmap of Gene Expressions")
     st.pyplot(plt)
 
 @st.cache_data
 def plot_violin(df):
     """Plot a violin plot of the expression of selected genes."""
-    import seaborn as sns
-    import matplotlib.pyplot as plt
-
+    # Select top 10 genes for the plot (as an example)
     selected_genes = df.iloc[:10, :].T
-    selected_genes = selected_genes.melt(var_name="Gene", value_name="Expression")
-    
+
+    # Plotting using matplotlib's boxplot as a substitute for violin plot
     plt.figure(figsize=(10, 6))
-    sns.violinplot(x="Gene", y="Expression", data=selected_genes)
-    plt.title("Violin Plot of Gene Expression")
+    plt.boxplot(selected_genes.values, vert=False, patch_artist=True)
+    plt.yticks(range(1, len(selected_genes.columns) + 1), selected_genes.columns)
+    plt.title("Box Plot of Gene Expression")
     st.pyplot(plt)
 
 @st.cache_data
@@ -58,8 +57,8 @@ def main():
         if st.button("Plot Heatmap"):
             plot_heatmap(df)
 
-        # Plot Violin Plot
-        if st.button("Plot Violin Plot"):
+        # Plot Violin Plot (substituted with box plot)
+        if st.button("Plot Box Plot"):
             plot_violin(df)
 
         # Plot Bar Chart of Mean Expression
