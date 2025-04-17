@@ -53,16 +53,25 @@ def apply_kmeans(df, n_clusters=3):
     # Center the data (subtract the mean from each column)
     df_centered = df - df.mean(axis=0)
 
-    # Randomly initialize centroids from the data
+    # Randomly initialize centroids from the data (3 random rows as centroids)
     centroids = df_centered.sample(n=n_clusters, axis=1).values.T
 
-    prev_centroids = centroids.copy()
+    prev_centroids = np.zeros_like(centroids)  # Initialize previous centroids as zeros
+    clusters = np.zeros(df_centered.shape[0])  # Initialize cluster assignments
+
     while True:
         # Calculate the distances from the data points to the centroids
         distances = np.linalg.norm(df_centered.T.values[:, np.newaxis] - centroids, axis=2)
-        
+
         # Assign each point to the nearest centroid
-        clusters = distances.argmin(axis=1)
+        new_clusters = distances.argmin(axis=1)
+
+        # If the cluster assignments don't change, the algorithm has converged
+        if np.array_equal(new_clusters, clusters):
+            break
+
+        # Update clusters and centroids
+        clusters = new_clusters
 
         # Update centroids by averaging the points in each cluster
         new_centroids = np.array([df_centered.iloc[:, clusters == i].mean(axis=1) for i in range(n_clusters)]).T
@@ -70,14 +79,17 @@ def apply_kmeans(df, n_clusters=3):
         # Check if centroids have converged
         if np.allclose(new_centroids, prev_centroids):
             break
+
         prev_centroids = new_centroids
 
     # Plot the PCA result with clusters
     pca_df = pca(df)
     pca_df["Cluster"] = clusters
 
-    # Plot the PCA results with clusters using Streamlit's bar chart
-    st.bar_chart(pca_df['Cluster'])
+    # Plot the PCA results with clusters using Streamlit's scatter_chart
+    st.write("### PCA with KMeans Clusters")
+    st.scatter_chart(pca_df[["PC1", "PC2"]])  # Plot PCA in 2D
+    return pca_df
 
 # Streamlit App
 def main():
@@ -97,10 +109,13 @@ def main():
 
         if st.button("Plot PCA"):
             pca_df = pca(df)
-            st.line_chart(pca_df[["PC1", "PC2"]])
+            st.write("### PCA Plot")
+            st.scatter_chart(pca_df[["PC1", "PC2"]])  # Plot PCA in 2D
 
         if st.button("Apply KMeans Clustering"):
-            apply_kmeans(df)
+            pca_df = apply_kmeans(df)
+            st.write("### KMeans Clustering Results on PCA")
+            st.scatter_chart(pca_df[["PC1", "PC2", "Cluster"]])  # Plot PCA with clusters
 
 if __name__ == "__main__":
     main()
